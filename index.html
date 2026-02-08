@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flashcards Interactivas - Girl's Day Out</title>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Quicksand:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        :root { --p-color: #ff6bad; --s-color: #4ecdc4; --bg: #fdf2f8; }
+        body { font-family: 'Quicksand', sans-serif; background-color: var(--bg); margin: 0; display: flex; align-items: center; justify-content: center; min-height: 100vh; overflow-x: hidden; }
+        #app { width: 95%; max-width: 600px; text-align: center; background: white; padding: 25px; border-radius: 30px; box-shadow: 0 15px 35px rgba(255,107,173,0.2); }
+        .flashcard { width: 100%; height: 450px; perspective: 1000px; cursor: pointer; margin-bottom: 25px; }
+        .card-inner { position: relative; width: 100%; height: 100%; transition: transform 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275); transform-style: preserve-3d; }
+        .flipped .card-inner { transform: rotateY(180deg); }
+        .front, .back { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; border-radius: 25px; display: flex; flex-direction: column; align-items: center; justify-content: space-evenly; padding: 20px; box-sizing: border-box; border: 4px solid var(--p-color); background: #fff; }
+        .back { transform: rotateY(180deg); background-color: var(--p-color); color: white; border: 4px solid white; }
+        .img-container { width: 100%; height: 250px; border-radius: 15px; overflow: hidden; background: #eee; }
+        .img-container img { width: 100%; height: 100%; object-fit: cover; }
+        .phrase { font-size: 1.5rem; font-weight: 700; color: #333; margin: 10px 0; }
+        .back .phrase { color: white; }
+        button { background: var(--s-color); color: white; border: none; padding: 15px 40px; border-radius: 50px; font-family: 'Fredoka One', cursive; font-size: 1.2rem; cursor: pointer; transition: 0.3s; display: none; box-shadow: 0 5px 0 #3baea5; }
+        button:active { transform: translateY(4px); box-shadow: none; }
+        #final-screen { display: none; }
+        input { padding: 12px; border-radius: 10px; border: 2px solid var(--p-color); font-size: 1rem; margin: 10px; width: 80%; }
+        ul { list-style: none; padding: 0; text-align: left; background: #fff1f8; border-radius: 15px; padding: 15px; }
+        li { padding: 8px; border-bottom: 1px solid #ffdeef; color: #d02e7a; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <div id="game-container">
+        <div class="flashcard" id="card" onclick="toggleCard()">
+            <div class="card-inner">
+                <div class="front">
+                    <div class="img-container"><img id="q-img" src="" alt="Learning"></div>
+                    <div class="phrase" id="eng-text"></div>
+                    <small>Click para escuchar y voltear</small>
+                </div>
+                <div class="back">
+                    <h2 style="font-family: 'Fredoka One';">Traducción:</h2>
+                    <div class="phrase" id="esp-text"></div>
+                    <small>Click para volver</small>
+                </div>
+            </div>
+        </div>
+        <button id="next-btn" onclick="nextCard()">SIGUIENTE ➔</button>
+    </div>
+
+    <div id="final-screen">
+        <h1 style="font-family: 'Fredoka One'; color: var(--p-color); font-size: 3rem;">GAME OVER</h1>
+        <p>¡Eres una estrella! Ingresa tu nombre para el registro:</p>
+        <input type="text" id="user-name" placeholder="Escribe tu nombre aquí...">
+        <button id="save-btn" style="display:inline-block;" onclick="saveRecord()">GUARDAR MI RÉCORD</button>
+        <div id="leaderboard">
+            <h3>Participantes Anteriores:</h3>
+            <ul id="p-list"></ul>
+        </div>
+    </div>
+</div>
+
+<script>
+    const data = [
+        { eng: "What are you doing?", esp: "Qué estás haciendo?", pastEng: "What were you doing?", pastEsp: "Qué estabas haciendo?", img: "https://images.unsplash.com/photo-1516062423079-7ca13cdc7f5a?w=500" },
+        { eng: "Would you like to go shopping?", esp: "Te gustaría ir de compras?", pastEng: "Did you want to go shopping?", pastEsp: "Quisiste ir de compras?", img: "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=500" },
+        { eng: "I have a date", esp: "Tengo una cita", pastEng: "I had a date", pastEsp: "Tuve una cita", img: "https://images.unsplash.com/photo-1522673607200-16488321499b?w=500" },
+        { eng: "We're going to Leslie's party", esp: "Vamos a la fiesta de Leslie", pastEng: "We went to Leslie's party", pastEsp: "Fuimos a la fiesta de Leslie", img: "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=500" },
+        { eng: "I don't know what to wear", esp: "No sé qué ponerme", pastEng: "I didn't know what to wear", pastEsp: "No supe qué ponerme", img: "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=500" },
+        { eng: "Of course!", esp: "Por supuesto!", pastEng: "Of course it was!", pastEsp: "Por supuesto que fue!", img: "https://images.unsplash.com/photo-1554497340-a0276de98028?w=500" },
+        { eng: "I need a bathing suit", esp: "Necesito un traje de baño", pastEng: "I needed a bathing suit", pastEsp: "Necesité un traje de baño", img: "https://images.unsplash.com/photo-1502307100811-6bdc0981a85b?w=500" },
+        { eng: "My trip to the beach", esp: "Mi viaje a la playa", pastEng: "My trip to the beach was great", pastEsp: "Mi viaje a la playa fue genial", img: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=500" },
+        { eng: "I'm on", esp: "Estoy de acuerdo", pastEng: "I was on", pastEsp: "Estuve de acuerdo", img: "https://images.unsplash.com/photo-1533227268428-f9ed0900fb3b?w=500" },
+        { eng: "I need some sporty clothes", esp: "Necesito algo de ropa deportiva", pastEng: "I needed some sporty clothes", pastEsp: "Necesité algo de ropa deportiva", img: "https://images.unsplash.com/photo-1483721310020-03333e577078?w=500" },
+        { eng: "See you at 12:00 pm", esp: "Te veo a las 12:00 pm", pastEng: "I saw you at 12:00 pm", pastEsp: "Te vi a las 12:00 pm", img: "https://images.unsplash.com/photo-1508921340878-ba53e1f016ec?w=500" },
+        { eng: "We can go to the cinema too", esp: "Podemos ir al cine también", pastEng: "We went to the cinema too", pastEsp: "Fuimos al cine también", img: "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=500" },
+        { eng: "Terminator's new movie is playing now", esp: "La nueva película de Terminator se está proyectando ahora", pastEng: "The movie was playing", pastEsp: "La película se estaba proyectando", img: "https://images.unsplash.com/photo-1478720568477-152d9b164e26?w=500" },
+        { eng: "He is so handsome", esp: "Él es tan guapo", pastEng: "He was so handsome", pastEsp: "Él era tan guapo", img: "https://images.unsplash.com/photo-1480455624313-e29b44bbfde1?w=500" },
+        { eng: "Remember that we should go to the party at night", esp: "Recuerda que debemos ir a la fiesta en la noche", pastEng: "I remembered the party", pastEsp: "Recordé la fiesta", img: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=500" },
+        { eng: "I almost forgot", esp: "Casi lo olvido", pastEng: "I almost forgot the date", pastEsp: "Casi olvido la cita", img: "https://images.unsplash.com/photo-1584940120743-8981ca35b012?w=500" },
+        { eng: "To pick up her present at jewelry store", esp: "Para recoger su regalo en la joyería", pastEng: "I picked up the present", pastEsp: "Recogí el regalo", img: "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=500" },
+        { eng: "Where is the location?", esp: "Dónde es la ubicación?", pastEng: "Where was the location?", pastEsp: "Dónde fue la ubicación?", img: "https://images.unsplash.com/photo-1526778548025-fa2f459cd5c1?w=500" },
+        { eng: "It's close to the zoo", esp: "Está cerca del zoológico", pastEng: "It was close to the zoo", pastEsp: "Estaba cerca del zoológico", img: "https://images.unsplash.com/photo-1510797215324-95aa89f29763?w=500" },
+        { eng: "Between the marketplace and the new downtown building", esp: "Entre el mercado y el nuevo edificio del centro", pastEng: "It was between the buildings", pastEsp: "Estaba entre los edificios", img: "https://images.unsplash.com/photo-1531050171669-70c47309548b?w=500" },
+        { eng: "We can go on the way to the party", esp: "Podemos ir de camino a la fiesta", pastEng: "We went on the way", pastEsp: "Fuimos de camino", img: "https://images.unsplash.com/photo-1469033011854-477fd0fed71d?w=500" },
+        { eng: "The club is two blocks near the jewelry store", esp: "El club está a dos cuadras de la joyería", pastEng: "The club was near there", pastEsp: "El club estaba cerca de allí", img: "https://images.unsplash.com/photo-1566737236500-c8ac40014582?w=500" },
+        { eng: "Just in front of the library and the bakery store", esp: "Justo enfrente de la biblioteca y la panadería", pastEng: "It was in front of them", pastEsp: "Estaba frente a ellos", img: "https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=500" },
+        { eng: "It couldn't be better!", esp: "No podría ser mejor!", pastEng: "It couldn't be better than yesterday", pastEsp: "No pudo ser mejor que ayer", img: "https://images.unsplash.com/photo-1528605248644-14dd04cb11c7?w=500" },
+        { eng: "Can we go to the beauty store too?", esp: "Podemos ir a la tienda de belleza también?", pastEng: "We went to the beauty store", pastEsp: "Fuimos a la tienda de belleza", img: "https://images.unsplash.com/photo-1596462502278-27bfac4023c6?w=500" },
+        { eng: "I need to buy some make up", esp: "Necesito comprar algo de maquillaje", pastEng: "I needed to buy make up", pastEsp: "Necesité comprar maquillaje", img: "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=500" },
+        { eng: "Today is going to be a girl's day!", esp: "Hoy va a ser un día de chicas!", pastEng: "Yesterday was a girl's day", pastEsp: "Ayer fue un día de chicas", img: "https://images.unsplash.com/photo-1491438590914-bc09fcaaf77a?w=500" }
+    ];
+
+    let currentIdx = 0;
+    let isFlipped = false;
+    const synth = window.speechSynthesis;
+
+    function speak(text, lang) {
+        synth.cancel();
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = lang;
+        utter.rate = 0.9;
+        synth.speak(utter);
+    }
+
+    function loadCard() {
+        const item = data[currentIdx];
+        document.getElementById('eng-text').innerHTML = `${item.eng}<br><span style="font-size:0.9rem; color:#888;">Past: ${item.pastEng}</span>`;
+        document.getElementById('esp-text').innerHTML = `${item.esp}<br><span style="font-size:0.9rem; color:#fff;">Pasado: ${item.pastEsp}</span>`;
+        document.getElementById('q-img').src = item.img;
+        document.getElementById('next-btn').style.display = 'none';
+        document.getElementById('card').classList.remove('flipped');
+        isFlipped = false;
+        speak(item.eng, 'en-US');
+    }
+
+    function toggleCard() {
+        const card = document.getElementById('card');
+        card.classList.toggle('flipped');
+        isFlipped = !isFlipped;
+        
+        if(isFlipped) {
+            confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 }, colors: ['#ff6bad', '#4ecdc4'] });
+            speak(data[currentIdx].esp, 'es-MX');
+            document.getElementById('next-btn').style.display = 'inline-block';
+        } else {
+            speak(data[currentIdx].eng, 'en-US');
+        }
+    }
+
+    function nextCard() {
+        currentIdx++;
+        if(currentIdx < data.length) {
+            loadCard();
+        } else {
+            document.getElementById('game-container').style.display = 'none';
+            document.getElementById('final-screen').style.display = 'block';
+            showList();
+        }
+    }
+
+    function saveRecord() {
+        const name = document.getElementById('user-name').value;
+        if(!name) return alert("¡Pon tu nombre para el trofeo!");
+        let players = JSON.parse(localStorage.getItem('girlsDayPlayers') || "[]");
+        players.push(name);
+        localStorage.setItem('girlsDayPlayers', JSON.stringify(players));
+        document.getElementById('user-name').value = '';
+        showList();
+    }
+
+    function showList() {
+        const list = document.getElementById('p-list');
+        list.innerHTML = '';
+        let players = JSON.parse(localStorage.getItem('girlsDayPlayers') || "[]");
+        players.forEach(p => {
+            const li = document.createElement('li');
+            li.textContent = "⭐ " + p;
+            list.appendChild(li);
+        });
+    }
+
+    window.onload = loadCard;
+</script>
+</body>
+</html>
